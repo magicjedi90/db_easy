@@ -13,14 +13,16 @@ import yaml
 class Config:
     project_path: Path
     host: str
-    port: str
+    port: int
     instance: str
-    user: str
+    database: str
+    username: str
     password: str
     trusted: str
 
     schema_path: Path
     log_table: str = "db_easy_log"
+    lock_table: str = "db_easy_lock"
     template_vars: Dict[str, Any] = field(default_factory=dict)
 
 

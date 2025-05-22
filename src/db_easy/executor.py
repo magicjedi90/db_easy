@@ -8,11 +8,13 @@ from .adapters import get_adapter
 
 
 def sync_database(config, *, dry_run: bool = False) -> None:
-    # db = Database(cfg.db_url, cfg.log_table)
     adapter = get_adapter(config)
+    if adapter.is_locked():
+        raise Exception("db-easy is already running")
+    adapter.lock()
     all_steps = parse_directory(Path(config.schema_path))
-    applied = db.applied_steps()
-    pending = [s for s in all_steps if (s.author, s.step_id) not in applied]
+    applied = adapter.get_applied_steps()
+    pending = [step for step in all_steps if (step.filename, step.author, step.step_id) not in applied]
 
     if not pending:
         print("✔ Database is already up to date.")
@@ -27,14 +29,14 @@ def sync_database(config, *, dry_run: bool = False) -> None:
             print(sql_rendered)
             continue
 
-        with db.connect() as conn:
-            try:
-                conn.execute(sql_rendered)
-                db.record_step(conn, step, checksum)
-                conn.commit()
-                print(f"✓ Applied {step.author}:{step.step_id}")
-            except Exception as exc:
-                conn.rollback()
-                raise RuntimeError(
-                    f"Failed on {step.author}:{step.step_id} → {exc}"
-                ) from exc
+        try:
+            adapter.execute(sql_rendered)
+            adapter.record_step(step, checksum)
+            adapter.unlock()
+            adapter.commit()
+            print(f"✓ Applied {step.author}:{step.step_id}")
+        except Exception as exc:
+            adapter.rollback()
+            raise RuntimeError(
+                f"Failed on {step.author}:{step.step_id} → {exc}"
+            ) from exc

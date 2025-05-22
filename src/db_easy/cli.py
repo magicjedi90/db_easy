@@ -41,8 +41,8 @@ def cli():
 )
 def sync(project_path, db_url, dry_run, var_kv):
     """Synchronize database with any pending steps."""
-    cfg = load_config(Path(project_path), db_url_override=db_url, cli_vars=var_kv)
-    sync_database(cfg, dry_run=dry_run)
+    config = load_config(Path(project_path), db_url_override=db_url, cli_vars=var_kv)
+    sync_database(config, dry_run=dry_run)
 
 
 def run_cli() -> None:
