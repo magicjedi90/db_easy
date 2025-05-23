@@ -41,13 +41,7 @@ def load_config(project_path: Path, host: str, port: int, instance: str, databas
         if not host:
             raise ValueError("host is required in db-easy.yaml or as a CLI argument")
     if not port:
-        port = data.get("port", 5432)
-    if not instance:
-        instance = data.get("instance", None)
-    if not database:
-        database = data.get("database", "postgres")
-    if not username:
-        username = data.get("username", None)
+        port = data.get("port", None)
     if not password:
         password = data.get("password", None)
     if not trusted_auth:
