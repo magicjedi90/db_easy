@@ -2,13 +2,15 @@
 from .postgres import PostgresAdapter
 from .mssql    import MssqlAdapter
 from .mariadb  import MariadbAdapter
+from ..config import Config
 
-def get_adapter(cfg):
-    name = cfg.dialect_name  # e.g. "postgres"
+
+def get_adapter(config: Config):
+    name = config.sql_dialect  # e.g. "postgres"
     if name == "postgres":
-        return PostgresAdapter(cfg)
+        return PostgresAdapter(config)
     if name == "mssql":
-        return MssqlAdapter(cfg)
+        return MssqlAdapter(config)
     if name == "mariadb":
-        return MariadbAdapter(cfg)
+        return MariadbAdapter(config)
     raise ValueError(f"Unsupported dialect {name}")

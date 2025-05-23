@@ -22,10 +22,63 @@ def cli():
     help="Path to schema repo containing db-easy.yaml & schema/",
 )
 @click.option(
-    "--db",
-    "db_url",
+    "--host",
     default=None,
-    help="Database URL to override the config file / env var",
+    help="Database Port used for connecting",
+)
+@click.option(
+    "--port",
+    default=None,
+    help="Database Port to connect to",
+)
+@click.option(
+    "--instance",
+    default=None,
+    help="Instance used for connecting to MSSQL Database",
+)
+@click.option(
+    "--database",
+    "-db",
+    default=None,
+    help="Desired database to connect to on host",
+)
+@click.option(
+    "--username",
+    "-u",
+    default=None,
+    help="Username used for authenticating with the database",
+)
+@click.option(
+    "--password",
+    "-pw",
+    default=None,
+    help="Password used for authenticating with the database",
+)
+@click.option(
+    "--trusted-auth",
+    is_flag=True,
+    default=False,
+    help="Use trusted authentication for connecting to MSSQL Database",
+)
+@click.option(
+    "--sql-dialect",
+    default=None,
+    help="SQL dialect to use for connecting to database"
+)
+@click.option(
+    "--default-schema",
+    default=None,
+    help="Schema that the log and lock tables will be created in",
+)
+@click.option(
+    "--log-table",
+    default=None,
+    help="Name of the table to use to keep track of changes"
+)
+@click.option(
+    "--lock-table",
+    default=None,
+    help="Name of the table to use to lock the database during sync"
 )
 @click.option(
     "--dry-run",
@@ -34,15 +87,16 @@ def cli():
     help="Parse & list SQL without executing anything",
 )
 @click.option(
-    "--vars",
-    "var_kv",
-    default=None,
-    help="Comma-separated key=value pairs for Jinja template vars",
+    "--same-checksums",
+    is_flag=True,
+    default=False,
+    help="Checks the current checksums against the existing checksums and raises an error if they are different"
 )
-def sync(project_path, db_url, dry_run, var_kv):
-    """Synchronize database with any pending steps."""
-    config = load_config(Path(project_path), db_url_override=db_url, cli_vars=var_kv)
-    sync_database(config, dry_run=dry_run)
+def sync(project_path, host, port, instance, database, username, password, trusted_auth,
+                         sql_dialect, default_schema, log_table, lock_table, dry_run, same_checksums):
+    config = load_config(Path(project_path), host, port, instance, database, username, password, trusted_auth,
+                         sql_dialect, default_schema, log_table, lock_table)
+    sync_database(config, dry_run=dry_run, same_checksums=same_checksums)
 
 
 def run_cli() -> None:

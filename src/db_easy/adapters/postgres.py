@@ -12,4 +12,4 @@ class PostgresAdapter(BaseAdapter):
 
     def __init__(self, config):
         connection: PoolProxiedConnection = build_connector(config).to_user_postgres()
-        super().__init__(connection, config.log_table)
+        super().__init__(connection, config.default_schema, config.log_table, config.lock_table)
