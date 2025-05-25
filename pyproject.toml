@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "db_easy"
+name = "db-easy"
 dynamic = ["version"]
 description = 'Zero-boilerplate schema migrations —straight from your own SQL files.
 readme = "README.md"
@@ -25,12 +25,15 @@ classifiers = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Programming Language :: Python :: Implementation :: PyPy",
 ]
-dependencies = ["etl-utilities"]
+dependencies = ["etl-utilities", "pymysql", "click", "pyodbc"]
 
 [project.urls]
 Documentation = "https://github.com/magicjedi90/db_easy#readme"
 Issues = "https://github.com/magicjedi90/db_easy/issues"
 Source = "https://github.com/magicjedi90/db_easy"
+
+[project.scripts]
+db-easy = "db_easy.cli:run_cli"
 
 [tool.hatch.version]
 path = "src/db_easy/__about__.py"

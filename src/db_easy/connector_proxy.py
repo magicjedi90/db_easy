@@ -4,7 +4,7 @@ from .config import Config
 
 
 def build_connector(config: Config) -> Connector:
-    """Instantiate Connector from db-easy config section."""
+    """Instantiate Connector from the db-easy config section."""
     # split cfg.db_url or use discrete fields; illustration only:
     return Connector(
         host     = config.host,
