@@ -49,7 +49,7 @@ def load_config(project_path: Path, host: str, port: int, instance: str, databas
     if not sql_dialect:
         sql_dialect = data.get("sql_dialect", "postgres")
     if not default_schema:
-        default_schema = data.get("default_schema", "public")
+        default_schema = data.get("default_schema", None)
     if not log_table:
         log_table = data.get("log_table", "db_easy_log")
     if not lock_table:

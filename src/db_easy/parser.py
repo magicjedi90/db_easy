@@ -13,7 +13,7 @@ class Step(NamedTuple):
     filename: str
 
 
-def parse_sql_file(file_path: Path) -> List[Step]:
+def parse_sql_file(file_path: Path, base_dir: Path) -> List[Step]:
     steps: List[Step] = []
     content = file_path.read_text(encoding="utf-8")
 
@@ -23,6 +23,7 @@ def parse_sql_file(file_path: Path) -> List[Step]:
         start = match.end()
         end = matches[i + 1].start() if i + 1 < len(matches) else len(content)
         sql_block = content[start:end].strip()
+        relative_name = file_path.relative_to(base_dir).as_posix()
         steps.append(
             Step(author=author, step_id=step_id, sql=sql_block, filename=file_path.name)
         )
@@ -53,14 +54,14 @@ def parse_directory(directory: Path) -> List[Step]:
         if subdir.is_dir():
             handled.add(subdir.name)
             for file_path in _sql_files_in(subdir):
-                all_steps.extend(parse_sql_file(file_path))
+                all_steps.extend(parse_sql_file(file_path, directory))
 
     # 2. any other subdirectories, in alphabetical order
     for subdir in sorted(
         path for path in directory.iterdir() if path.is_dir() and path.name not in handled
     ):
         for file_path in _sql_files_in(subdir):
-            all_steps.extend(parse_sql_file(file_path))
+            all_steps.extend(parse_sql_file(file_path, directory))
 
     return all_steps
 

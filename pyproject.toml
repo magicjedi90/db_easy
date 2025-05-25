@@ -5,7 +5,7 @@ build-backend = "hatchling.build"
 [project]
 name = "db-easy"
 dynamic = ["version"]
-description = 'Zero-boilerplate schema migrations —straight from your own SQL files.
+description = 'Zero-boilerplate schema migrations —straight from your own SQL files.'
 readme = "README.md"
 requires-python = ">=3.8"
 license = "MIT"
