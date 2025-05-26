@@ -1,4 +1,4 @@
-# db_easy/parser.py
+# sqlstride/parser.py
 from pathlib import Path
 from typing import List, NamedTuple
 from .constants import STEP_PATTERN, ORDERED_DIRS

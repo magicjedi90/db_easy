@@ -1,4 +1,4 @@
-# db_easy/adapters/mssql.py
+# sqlstride/adapters/mssql.py
 from etl.database.sql_dialects import mssql
 from sqlalchemy import PoolProxiedConnection
 

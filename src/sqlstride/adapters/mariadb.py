@@ -1,4 +1,4 @@
-# db_easy/adapters/postgres.py
+# sqlstride/adapters/postgres.py
 from etl.database.sql_dialects import mariadb
 from sqlalchemy import PoolProxiedConnection
 

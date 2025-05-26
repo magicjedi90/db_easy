@@ -1,4 +1,4 @@
-# db_easy/adapters/__init__.py
+# sqlstride/adapters/__init__.py
 from .postgres import PostgresAdapter
 from .mssql    import MssqlAdapter
 from .mariadb  import MariadbAdapter

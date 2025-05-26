@@ -1,4 +1,4 @@
-# db_easy/config.py
+# sqlstride/config.py
 from __future__ import annotations
 
 import os

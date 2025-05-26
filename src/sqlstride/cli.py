@@ -1,4 +1,4 @@
-# db_easy/cli.py
+# sqlstride/cli.py
 import click
 from pathlib import Path
 

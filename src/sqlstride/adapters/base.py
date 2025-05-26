@@ -1,4 +1,4 @@
-# db_easy/adapters/base.py
+# sqlstride/adapters/base.py
 from abc import ABC, abstractmethod
 from typing import Dict, Tuple
 

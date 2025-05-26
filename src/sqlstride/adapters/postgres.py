@@ -1,4 +1,4 @@
-# db_easy/adapters/postgres.py
+# sqlstride/adapters/postgres.py
 from sqlalchemy import PoolProxiedConnection
 
 from .base import BaseAdapter

@@ -1,4 +1,4 @@
-# db_easy/executor.py
+# sqlstride/executor.py
 import os
 from hashlib import sha256
 from pathlib import Path

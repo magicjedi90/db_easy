@@ -1,4 +1,4 @@
-# db_easy/connector_proxy.py
+# sqlstride/connector_proxy.py
 from etl.database.connector import Connector
 from .config import Config
 

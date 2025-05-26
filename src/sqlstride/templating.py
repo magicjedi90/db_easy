@@ -1,4 +1,4 @@
-# db_easy/templating.py
+# sqlstride/templating.py
 from jinja2 import Environment, BaseLoader
 
 _env = Environment(loader=BaseLoader(), autoescape=False)
