@@ -23,15 +23,18 @@ this file should look like:
 
 ```yaml
 # Required
+sql_dialect: postgres  # Options: postgres, mssql, mariadb
 host: localhost
+
+# Optional with no defaults
 port: 5432
+instance: mssql_db_instance
 database: my_database
 username: db_user
 password: db_password
+default_schema: public
 
 # Optional with defaults
-sql_dialect: postgres  # Options: postgres, mssql, mariadb
-default_schema: public
 trusted_auth: false
 log_table: db_easy_log
 lock_table: db_easy_lock
@@ -41,13 +44,13 @@ lock_table: db_easy_lock
 
 | Option         | Description                                         | Default      |
 |----------------|-----------------------------------------------------|--------------|
+| sql_dialect    | SQL dialect to use                                  | postgres     |
 | host           | Database host (required)                            | -            |
 | port           | Database port                                       | -            |
 | database       | Database name                                       | -            |
 | username       | Database username                                   | -            |
 | password       | Database password                                   | -            |
 | instance       | Instance name (for MSSQL)                           | -            |
-| sql_dialect    | SQL dialect to use                                  | postgres     |
 | default_schema | Default schema the log and lock tables will save to | -            |
 | trusted_auth   | Use trusted authentication (for MSSQL)              | false        |
 | log_table      | Name of the log table                               | db_easy_log  |
@@ -122,13 +125,23 @@ CREATE INDEX idx_users_username ON users (username);
 
 ## CLI Usage
 
+### Sync Command
+
 The main command is `db-easy sync`, which synchronizes your database schema with your SQL files.
 
 ```bash
 db-easy sync [OPTIONS]
 ```
 
-### Options
+### Create Repository Structure
+
+The `create_repo` command creates the recommended directory structure for your project with blank `__init__.py` files in each directory. It also interactively prompts you for configuration values to generate a customized db-easy.yaml file.
+
+```bash
+db-easy create_repo [OPTIONS]
+```
+
+### Sync Command Options
 
 | Option           | Description                                                                                           |
 |------------------|-------------------------------------------------------------------------------------------------------|
@@ -147,6 +160,12 @@ db-easy sync [OPTIONS]
 | --dry-run        | Parse & list SQL without executing anything                                                           |
 | --same-checksums | Checks the current checksums against the existing checksums and raises an error if they are different |
 
+### Create Repository Structure Options
+
+| Option        | Description                                                |
+|---------------|------------------------------------------------------------|
+| --project, -p | Path to create the repository structure (default: current directory) |
+
 ## Examples
 
 ### Basic Usage
@@ -157,6 +176,9 @@ cd my_project
 
 # Run the sync command
 db-easy sync
+
+# Create the repository structure in the current directory
+db-easy create_repo
 ```
 
 ### Using Command-line Options
@@ -170,6 +192,9 @@ db-easy sync --dry-run
 
 # Check if any applied migrations have changed
 db-easy sync --same-checksums
+
+# Create repository structure in a specific directory
+db-easy create_repo --project /path/to/my_new_project
 ```
 
 ### Project Structure Example

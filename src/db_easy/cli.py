@@ -3,7 +3,7 @@ import click
 from pathlib import Path
 
 from .config import load_config
-from .executor import sync_database
+from .executor import sync_database, create_repository_structure
 
 
 @click.group()
@@ -97,6 +97,20 @@ def sync(project_path, host, port, instance, database, username, password, trust
     config = load_config(Path(project_path), host, port, instance, database, username, password, trusted_auth,
                          sql_dialect, default_schema, log_table, lock_table)
     sync_database(config, dry_run=dry_run, same_checksums=same_checksums)
+
+
+@cli.command()
+@click.option(
+    "--project",
+    "-p",
+    "project_path",
+    default=".",
+    type=click.Path(file_okay=False, dir_okay=True),
+    help="Path to create the repository structure",
+)
+def create_repo(project_path):
+    """Create the repository structure with all required directories."""
+    create_repository_structure(project_path)
 
 
 def run_cli() -> None:
