@@ -1,7 +1,7 @@
 import re
 
 # Detect lines like  -- step author:id
-STEP_PATTERN = re.compile(r"--\\s*step\\s+(\\w+):(\\w+)", re.IGNORECASE)
+STEP_PATTERN = re.compile(r"--\s*step\s+(\w+):(\w+)", re.IGNORECASE)
 # execution order for sub-directories
 ORDERED_DIRS = [
     # 1. infrastructure / runtime

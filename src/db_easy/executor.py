@@ -2,7 +2,7 @@
 import os
 from hashlib import sha256
 from pathlib import Path
-
+from etl.logger import Logger
 import click
 
 from .adapters import get_adapter
@@ -10,35 +10,36 @@ from .constants import ORDERED_DIRS
 from .parser import parse_directory
 from .templating import render_sql
 
+logger = Logger().get_logger()
 
 def sync_database(config, *, dry_run: bool = False, same_checksums: bool = False) -> None:
     adapter = get_adapter(config)
     if adapter.is_locked():
         raise Exception("db-easy is already running")
-    all_steps = parse_directory(Path(config.schema_path))
-    applied = adapter.get_applied_steps()
+    all_steps = parse_directory(Path(config.project_path))
+    applied = adapter.applied_steps()
     if same_checksums:
         different_checksums = []
         #  if applied checksums are different from new checksums raise error
-        already_applied = [step for step in all_steps if (step.filename, step.author, step.step_id) in applied]
+        already_applied = [step for step in all_steps if (step.author, step.step_id, step.filename) in applied]
         for step in already_applied:
-            sql_rendered = render_sql(step.sql, config.template_vars, step.filename)
+            sql_rendered = render_sql(step.sql, config.jinja_vars, step.filename)
             checksum = sha256(sql_rendered.encode()).hexdigest()
-            if checksum != applied[step.filename, step.author, step.step_id]:
-                different_checksums.append((step.filename, step.author, step.step_id))
+            if checksum != applied[step.author, step.step_id, step.filename]:
+                different_checksums.append((step.author, step.step_id, step.filename))
         if different_checksums:
             different_checksum_string = "\n".join(
-                f"{filename} {author}:{step_id}" for filename, author, step_id in different_checksums)
+                f"{filename} {author}:{step_id}" for author, step_id, filename in different_checksums)
             raise Exception(f"Checksums for the following steps are different:\n{different_checksum_string}")
 
-    pending = [step for step in all_steps if (step.filename, step.author, step.step_id) not in applied]
+    pending = [step for step in all_steps if (step.author, step.step_id, step.filename) not in applied]
 
     if not pending:
         print("✔ Database is already up to date.")
         return
-
+    logger.info(f"Found {len(pending)} steps to apply")
     for step in pending:
-        sql_rendered = render_sql(step.sql, config.template_vars, step.filename)
+        sql_rendered = render_sql(step.sql, config.jinja_vars, step.filename)
         checksum = sha256(sql_rendered.encode()).hexdigest()
 
         if dry_run:
@@ -115,6 +116,9 @@ def create_repository_structure(project_path: str) -> None:
         file.write(f"trusted_auth: {str(trusted_auth).lower()}\n")
         file.write(f"log_table: {log_table}\n")
         file.write(f"lock_table: {lock_table}\n")
+        file.write(f"\n# Jinja template variables\n")
+        file.write(f"jinja_vars:\n")
+        file.write(f"  # example_var: example_value\n")
 
     click.echo(f"Created db-easy.yaml configuration file at {yaml_file}")
 
@@ -123,9 +127,19 @@ def create_repository_structure(project_path: str) -> None:
         dir_path = project_path / directory
         os.makedirs(dir_path, exist_ok=True)
 
-        # Create blank __init__.py file
-        init_file = dir_path / "__init__.py"
-        with open(init_file, 'w') as f:
-            pass  # Create an empty file
-
+    gitignore_path = project_path / ".gitignore"
+    if gitignore_path.exists():
+        with open(gitignore_path, "r+", encoding="utf-8") as gi:
+            lines = [line.rstrip("\n") for line in gi.readlines()]
+            if "db-easy.yaml" not in lines:
+                # ensure the previous line ends with a newline
+                if lines and lines[-1] != "":
+                    gi.write("\n")
+                gi.write("db-easy.yaml\n")
+                click.echo("Added db-easy.yaml to existing .gitignore")
+    else:
+        # Create .gitignore containing the entry
+        with open(gitignore_path, "w", encoding="utf-8") as gi:
+            gi.write("db-easy.yaml\n")
+        click.echo("Created .gitignore and added db-easy.yaml")
     click.echo(f"Repository structure created at {project_path}")

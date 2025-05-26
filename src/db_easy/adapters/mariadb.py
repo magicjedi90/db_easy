@@ -6,7 +6,7 @@ from .base import BaseAdapter
 from ..connector_proxy import build_connector
 
 
-class PostgresAdapter(BaseAdapter):
+class MariadbAdapter(BaseAdapter):
 
     dialect = mariadb
 

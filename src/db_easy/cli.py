@@ -92,10 +92,24 @@ def cli():
     default=False,
     help="Checks the current checksums against the existing checksums and raises an error if they are different"
 )
+@click.option(
+    "--jinja-vars",
+    type=str,
+    default=None,
+    help="JSON string of variables to use in Jinja templates"
+)
 def sync(project_path, host, port, instance, database, username, password, trusted_auth,
-                         sql_dialect, default_schema, log_table, lock_table, dry_run, same_checksums):
+                         sql_dialect, default_schema, log_table, lock_table, dry_run, same_checksums, jinja_vars):
+    import json
+    jinja_vars_dict = {}
+    if jinja_vars:
+        try:
+            jinja_vars_dict = json.loads(jinja_vars)
+        except json.JSONDecodeError:
+            raise click.BadParameter("jinja-vars must be a valid JSON string")
+
     config = load_config(Path(project_path), host, port, instance, database, username, password, trusted_auth,
-                         sql_dialect, default_schema, log_table, lock_table)
+                         sql_dialect, default_schema, log_table, lock_table, jinja_vars_dict)
     sync_database(config, dry_run=dry_run, same_checksums=same_checksums)
 
 

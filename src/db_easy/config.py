@@ -2,9 +2,8 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Any
 
 import yaml
 
@@ -23,11 +22,12 @@ class Config:
     default_schema: str
     log_table: str = "db_easy_log"
     lock_table: str = "db_easy_lock"
+    jinja_vars: dict = None
 
 
 def load_config(project_path: Path, host: str, port: int, instance: str, database: str, username: str, password: str,
                 trusted_auth: bool, sql_dialect: str, default_schema: str, log_table: str = "db_easy_log",
-                lock_table: str = "db_easy_lock") -> Config:
+                lock_table: str = "db_easy_lock", jinja_vars: dict = None) -> Config:
     """Read db-easy.yaml, merge env vars & CLI overrides, return a Config object."""
     config_file = project_path / "db-easy.yaml"
     if not config_file.exists():
@@ -42,6 +42,12 @@ def load_config(project_path: Path, host: str, port: int, instance: str, databas
             raise ValueError("host is required in db-easy.yaml or as a CLI argument")
     if not port:
         port = data.get("port", None)
+    if not instance:
+        instance = data.get("instance", None)
+    if not database:
+        database = data.get("database", None)
+    if not username:
+        username = data.get("username", None)
     if not password:
         password = data.get("password", None)
     if not trusted_auth:
@@ -54,6 +60,8 @@ def load_config(project_path: Path, host: str, port: int, instance: str, databas
         log_table = data.get("log_table", "db_easy_log")
     if not lock_table:
         lock_table = data.get("lock_table", "db_easy_lock")
+    if not jinja_vars:
+        jinja_vars = data.get("jinja_vars", {})
 
     return Config(project_path, host, port, instance, database, username, password, trusted_auth,
-                  sql_dialect, default_schema, log_table, lock_table)
+                  sql_dialect, default_schema, log_table, lock_table, jinja_vars)
