@@ -28,25 +28,63 @@ class BaseAdapter(ABC):
             self.cursor = self.connection.cursor()
 
     def ensure_log_table(self):
-        ddl = f"""
-        CREATE TABLE IF NOT EXISTS {self.default_schema}.{self.log_table} (
-            {self.dialect.identity_fragment_function(self.log_table)},
-            author varchar(100) NOT NULL,
-            step_id varchar(100) NOT NULL,
-            filename varchar(100) NOT NULL,
-            checksum varchar(2000) NOT NULL,
-            applied_at {self.dialect.datetime_type} DEFAULT NOW()
-        );
-        """
+        if self.dialect.name == "mssql":
+            ddl = f"""
+            IF NOT EXISTS (
+                SELECT 1
+                FROM INFORMATION_SCHEMA.TABLES
+                WHERE TABLE_SCHEMA = '{self.default_schema}'
+                AND TABLE_NAME = '{self.log_table}'
+            )
+            BEGIN
+                CREATE TABLE {self.default_schema}].[{self.log_table}
+                (
+                    id           INT IDENTITY(1,1) PRIMARY KEY,   -- identity column
+                    author       VARCHAR(100)  NOT NULL,
+                    step_id      VARCHAR(100)  NOT NULL,
+                    filename     VARCHAR(100)  NOT NULL,
+                    checksum     VARCHAR(2000) NOT NULL,
+                    applied_at   DATETIME2      DEFAULT (SYSDATETIME())
+                );
+            END;
+            """
+        else:
+            ddl = f"""
+            CREATE TABLE IF NOT EXISTS {self.default_schema}.{self.log_table} (
+                {self.dialect.identity_fragment_function(self.log_table)},
+                author varchar(100) NOT NULL,
+                step_id varchar(100) NOT NULL,
+                filename varchar(100) NOT NULL,
+                checksum varchar(2000) NOT NULL,
+                applied_at {self.dialect.datetime_type} DEFAULT NOW()
+            );
+            """
         self.execute(ddl)
 
     def ensure_lock_table(self):
-        ddl = f"""
-        CREATE TABLE IF NOT EXISTS {self.default_schema}.{self.lock_table} (
-        {self.dialect.identity_fragment_function(self.lock_table)},
-        locked_at {self.dialect.datetime_type} DEFAULT NOW()
-        );
-        """
+        if self.dialect.name == "mssql":
+            ddl = f"""
+            IF NOT EXISTS (
+                SELECT 1
+                FROM INFORMATION_SCHEMA.TABLES
+                WHERE TABLE_SCHEMA = '{self.default_schema}'
+                AND TABLE_NAME = '{self.lock_table}'
+            )
+            BEGIN
+                CREATE TABLE {self.default_schema}].[{self.lock_table}
+                (
+                    {self.dialect.identity_fragment_function(self.lock_table)},
+                    locked_at {self.dialect.datetime_type} DEFAULT NOW()
+                );
+            END;
+            """
+        else:
+            ddl = f"""
+            CREATE TABLE IF NOT EXISTS {self.default_schema}.{self.lock_table} (
+            {self.dialect.identity_fragment_function(self.lock_table)},
+            locked_at {self.dialect.datetime_type} DEFAULT NOW()
+            );
+            """
         self.execute(ddl)
     # identical convenience wrappers the old psycopg code used:
     def execute(self, sql: str):
@@ -82,7 +120,10 @@ class BaseAdapter(ABC):
         )
 
     def lock(self):
-        self.execute(f"INSERT INTO {self.default_schema}.{self.lock_table} VALUES (DEFAULT, DEFAULT);")
+        if self.dialect.name == "mssql":
+            self.execute(f"INSERT INTO {self.default_schema}.{self.lock_table} DEFAULT VALUES;")
+        else:
+            self.execute(f"INSERT INTO {self.default_schema}.{self.lock_table} VALUES (DEFAULT, DEFAULT);")
 
     def unlock(self):
         self.execute(f"truncate table {self.default_schema}.{self.lock_table};")
