@@ -8,7 +8,7 @@ from .executor import sync_database, create_repository_structure
 
 @click.group()
 def cli():
-    """db-easy command-line interface."""
+    """sqlstride command-line interface."""
     pass
 
 
@@ -19,7 +19,7 @@ def cli():
     "project_path",
     default=".",
     type=click.Path(file_okay=False, dir_okay=True),
-    help="Path to schema repo containing db-easy.yaml & schema/",
+    help="Path to schema repo containing sqlstride.yaml & schema/",
 )
 @click.option(
     "--host",

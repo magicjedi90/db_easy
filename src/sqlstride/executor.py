@@ -15,7 +15,7 @@ logger = Logger().get_logger()
 def sync_database(config, *, dry_run: bool = False, same_checksums: bool = False) -> None:
     adapter = get_adapter(config)
     if adapter.is_locked():
-        raise Exception("db-easy is already running")
+        raise Exception("sqlstride is already running")
     all_steps = parse_directory(Path(config.project_path))
     applied = adapter.applied_steps()
     if same_checksums:
@@ -64,7 +64,7 @@ def sync_database(config, *, dry_run: bool = False, same_checksums: bool = False
 def create_repository_structure(project_path: str) -> None:
     """
     Create the repository structure with all directories from ORDERED_DIRS
-    and a blank __init__.py file in each directory. Also creates a db-easy.yaml
+    and a blank __init__.py file in each directory. Also creates a sqlstride.yaml
     file with user-provided configuration.
 
     Args:
@@ -72,8 +72,8 @@ def create_repository_structure(project_path: str) -> None:
     """
     project_path = Path(project_path)
 
-    # Get user input for the db-easy.yaml file
-    click.echo("Creating db-easy.yaml configuration file...")
+    # Get user input for the sqlstride.yaml file
+    click.echo("Creating sqlstride.yaml configuration file...")
 
     # Required fields
     sql_dialect = click.prompt("SQL dialect", type=click.Choice(['postgres', 'mssql', 'mariadb']), default='postgres')
@@ -87,13 +87,13 @@ def create_repository_structure(project_path: str) -> None:
     username = click.prompt("Database username (optional)", default='', show_default=False)
     password = click.prompt("Database password (optional)", default='', show_default=False, hide_input=True)
     default_schema = click.prompt("Default schema (optional)", default='', show_default=False)
-    log_table = click.prompt("Log table name", default='db_easy_log')
-    lock_table = click.prompt("Lock table name", default='db_easy_lock')
+    log_table = click.prompt("Log table name", default='sqlstride_log')
+    lock_table = click.prompt("Lock table name", default='sqlstride_lock')
 
-    # Create the db-easy.yaml file
-    yaml_file = project_path / "db-easy.yaml"
+    # Create the sqlstride.yaml file
+    yaml_file = project_path / "sqlstride.yaml"
     with open(yaml_file, 'w') as file:
-        file.write("# DB-Easy Configuration\n\n")
+        file.write("# sqlstride Configuration\n\n")
         file.write(f"# Required\n")
         file.write(f"sql_dialect: {sql_dialect}\n")
         file.write(f"host: {host}\n\n")
@@ -120,7 +120,7 @@ def create_repository_structure(project_path: str) -> None:
         file.write(f"jinja_vars:\n")
         file.write(f"  # example_var: example_value\n")
 
-    click.echo(f"Created db-easy.yaml configuration file at {yaml_file}")
+    click.echo(f"Created sqlstride.yaml configuration file at {yaml_file}")
 
     # Create each directory and add __init__.py
     for directory in ORDERED_DIRS:
@@ -131,15 +131,15 @@ def create_repository_structure(project_path: str) -> None:
     if gitignore_path.exists():
         with open(gitignore_path, "r+", encoding="utf-8") as gi:
             lines = [line.rstrip("\n") for line in gi.readlines()]
-            if "db-easy.yaml" not in lines:
+            if "sqlstride.yaml" not in lines:
                 # ensure the previous line ends with a newline
                 if lines and lines[-1] != "":
                     gi.write("\n")
-                gi.write("db-easy.yaml\n")
-                click.echo("Added db-easy.yaml to existing .gitignore")
+                gi.write("sqlstride.yaml\n")
+                click.echo("Added sqlstride.yaml to existing .gitignore")
     else:
         # Create .gitignore containing the entry
         with open(gitignore_path, "w", encoding="utf-8") as gi:
-            gi.write("db-easy.yaml\n")
-        click.echo("Created .gitignore and added db-easy.yaml")
+            gi.write("sqlstride.yaml\n")
+        click.echo("Created .gitignore and added sqlstride.yaml")
     click.echo(f"Repository structure created at {project_path}")
