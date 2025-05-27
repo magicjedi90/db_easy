@@ -82,7 +82,7 @@ class BaseAdapter(ABC):
         )
 
     def lock(self):
-        self.execute(f"INSERT INTO {self.default_schema}.{self.lock_table} VALUES (DEFAULT);")
+        self.execute(f"INSERT INTO {self.default_schema}.{self.lock_table} VALUES (DEFAULT, DEFAULT);")
 
     def unlock(self):
         self.execute(f"truncate table {self.default_schema}.{self.lock_table};")
