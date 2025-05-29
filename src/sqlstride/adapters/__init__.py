@@ -13,4 +13,4 @@ def get_adapter(config: Config):
         return MssqlAdapter(config)
     if name == "mariadb":
         return MariadbAdapter(config)
-    raise ValueError(f"Unsupported dialect {name}")
+    raise ValueError(f"Unsupported SQL dialect {name}")
