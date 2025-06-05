@@ -27,9 +27,6 @@ class PostgresAdapter(BaseAdapter):
                     """)
         for schema, table in cur.fetchall():
             ddl_query = f"""
-/* -------------------------------------------
-   DDL generator for test_schema.test_jinja
-------------------------------------------- */
 WITH cols AS (SELECT c.table_schema,
                      c.table_name,
                      c.ordinal_position,
@@ -132,6 +129,9 @@ GROUP BY c.table_schema, c.table_name, pk.pk_ddl;
                     AND p.prokind = 'f';
                     """)
         for schema, function_name, ddl in cur.fetchall():
+            # Replace CREATE FUNCTION with CREATE OR REPLACE FUNCTION for idempotent creation
+            if ddl.startswith("CREATE FUNCTION"):
+                ddl = ddl.replace("CREATE FUNCTION", "CREATE OR REPLACE FUNCTION", 1)
             yield DatabaseObject("function", schema, function_name, ddl)
 
         # Procedures
@@ -149,6 +149,9 @@ WHERE  p.prokind = 'p'                         -- procedures only
 ORDER  BY n.nspname, p.proname, arg_signature;
                     """)
         for schema, procedure_name, ddl in cur.fetchall():
+            # Replace CREATE PROCEDURE with CREATE OR REPLACE PROCEDURE for idempotent creation
+            if ddl.startswith("CREATE PROCEDURE"):
+                ddl = ddl.replace("CREATE PROCEDURE", "CREATE OR REPLACE PROCEDURE", 1)
             yield DatabaseObject("procedure", schema, procedure_name, ddl)
 
         # Triggers
@@ -164,75 +167,13 @@ ORDER  BY n.nspname, p.proname, arg_signature;
                     AND NOT t.tgisinternal;
                     """)
         for schema, trigger_name, ddl in cur.fetchall():
+            # Replace CREATE TRIGGER with CREATE OR REPLACE TRIGGER for idempotent creation
+            # Note: PostgreSQL doesn't support CREATE OR REPLACE TRIGGER directly,
+            # so we need to use DROP TRIGGER IF EXISTS followed by CREATE TRIGGER
+            if ddl.startswith("CREATE TRIGGER"):
+                table_name = ddl.split(" ON ")[1].split(" ")[0]
+                ddl = f"DROP TRIGGER IF EXISTS {trigger_name} ON {table_name};\n{ddl}"
             yield DatabaseObject("trigger", schema, trigger_name, ddl)
-
-        # Types (domains, enums, composite types)
-        cur.execute("""
-                    SELECT 
-                        n.nspname AS schema_name,
-                        t.typname AS type_name,
-                        pg_catalog.format_type(t.oid, NULL) AS type_def,
-                        CASE 
-                            WHEN t.typtype = 'd' THEN 'domain'
-                            WHEN t.typtype = 'e' THEN 'enum'
-                            WHEN t.typtype = 'c' THEN 'composite'
-                            ELSE 'type'
-                        END AS type_kind
-                    FROM pg_type t
-                    JOIN pg_namespace n ON t.typnamespace = n.oid
-                    WHERE n.nspname NOT IN ('pg_catalog', 'information_schema')
-                    AND (t.typtype = 'd' OR t.typtype = 'e' OR t.typtype = 'c')
-                    AND t.typname NOT LIKE '%\_%';
-                    """)
-        for schema, type_name, type_def, type_kind in cur.fetchall():
-            # For enums, we need to get the enum values
-            if type_kind == 'enum':
-                cur.execute(f"""
-                            SELECT 
-                                string_agg(quote_literal(enumlabel), ', ' ORDER BY enumsortorder) AS enum_values
-                            FROM pg_enum
-                            WHERE enumtypid = '{schema}.{type_name}'::regtype::oid;
-                            """)
-                enum_values, = cur.fetchone()
-                ddl = f"CREATE TYPE {schema}.{type_name} AS ENUM ({enum_values});"
-            # For domains, we need to get the domain definition
-            elif type_kind == 'domain':
-                cur.execute(f"""
-                            SELECT 
-                                format_type(t.typbasetype, t.typtypmod) AS base_type,
-                                t.typdefault AS default_value,
-                                t.typnotnull AS not_null,
-                                c.consrc AS check_constraint
-                            FROM pg_type t
-                            LEFT JOIN pg_constraint c ON t.oid = c.contypid
-                            WHERE t.typname = '{type_name}'
-                            AND t.typnamespace = (SELECT oid FROM pg_namespace WHERE nspname = '{schema}');
-                            """)
-                base_type, default_value, not_null, check_constraint = cur.fetchone()
-                ddl = f"CREATE DOMAIN {schema}.{type_name} AS {base_type}"
-                if default_value:
-                    ddl += f" DEFAULT {default_value}"
-                if not_null:
-                    ddl += " NOT NULL"
-                if check_constraint:
-                    ddl += f" CHECK ({check_constraint})"
-                ddl += ";"
-            # For composite types, we need to get the attribute definitions
-            elif type_kind == 'composite':
-                cur.execute(f"""
-                            SELECT 
-                                string_agg(attname || ' ' || format_type(atttypid, atttypmod), ', ' ORDER BY attnum) AS attributes
-                            FROM pg_attribute
-                            WHERE attrelid = '{schema}.{type_name}'::regtype::oid
-                            AND attnum > 0
-                            AND NOT attisdropped;
-                            """)
-                attributes, = cur.fetchone()
-                ddl = f"CREATE TYPE {schema}.{type_name} AS ({attributes});"
-            else:
-                ddl = f"-- Type definition for {schema}.{type_name} not implemented"
-
-            yield DatabaseObject("type", schema, type_name, ddl)
 
         # Materialized Views
         cur.execute("""
@@ -246,5 +187,7 @@ ORDER  BY n.nspname, p.proname, arg_signature;
                     AND c.relkind = 'm';
                     """)
         for schema, matview_name, ddl in cur.fetchall():
-            yield DatabaseObject("materialized_view", schema, matview_name, 
-                                f"CREATE MATERIALIZED VIEW {schema}.{matview_name} AS\n{ddl};")
+            # PostgreSQL doesn't support CREATE OR REPLACE MATERIALIZED VIEW
+            # We need to use DROP MATERIALIZED VIEW IF EXISTS followed by CREATE MATERIALIZED VIEW
+            full_ddl = f"DROP MATERIALIZED VIEW IF EXISTS {schema}.{matview_name} CASCADE;\nCREATE MATERIALIZED VIEW {schema}.{matview_name} AS\n{ddl};"
+            yield DatabaseObject("materialized_view", schema, matview_name, full_ddl)

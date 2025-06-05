@@ -126,7 +126,19 @@ class MssqlAdapter(BaseAdapter):
                         """)
             ddl_row = cur.fetchone()
             if ddl_row:
-                ddl = ddl_row[0]
+                create_table_ddl = ddl_row[0]
+                # Wrap the CREATE TABLE statement in an IF NOT EXISTS check
+                ddl = f"""
+IF NOT EXISTS (
+    SELECT 1
+    FROM INFORMATION_SCHEMA.TABLES
+    WHERE TABLE_SCHEMA = '{schema}'
+    AND TABLE_NAME = '{table}'
+)
+BEGIN
+    {create_table_ddl}
+END;
+"""
                 yield DatabaseObject("table", schema, table, ddl)
 
         # Views
@@ -141,7 +153,8 @@ class MssqlAdapter(BaseAdapter):
                     WHERE s.name NOT IN ('sys', 'INFORMATION_SCHEMA');
                     """)
         for schema, view, definition in cur.fetchall():
-            ddl = f"CREATE VIEW [{schema}].[{view}] AS\n{definition}"
+            # Use CREATE OR ALTER VIEW for idempotent creation
+            ddl = f"CREATE OR ALTER VIEW [{schema}].[{view}] AS\n{definition}"
             yield DatabaseObject("view", schema, view, ddl)
 
         # Stored Procedures
@@ -156,6 +169,9 @@ class MssqlAdapter(BaseAdapter):
                     WHERE s.name NOT IN ('sys', 'INFORMATION_SCHEMA');
                     """)
         for schema, procedure, definition in cur.fetchall():
+            # Ensure the procedure definition uses CREATE OR ALTER PROCEDURE
+            if definition.strip().upper().startswith("CREATE PROCEDURE"):
+                definition = definition.replace("CREATE PROCEDURE", "CREATE OR ALTER PROCEDURE", 1)
             yield DatabaseObject("procedure", schema, procedure, definition)
 
         # Functions
@@ -177,6 +193,9 @@ class MssqlAdapter(BaseAdapter):
                     AND s.name NOT IN ('sys', 'INFORMATION_SCHEMA');
                     """)
         for schema, function, definition, function_type in cur.fetchall():
+            # Ensure the function definition uses CREATE OR ALTER FUNCTION
+            if definition.strip().upper().startswith("CREATE FUNCTION"):
+                definition = definition.replace("CREATE FUNCTION", "CREATE OR ALTER FUNCTION", 1)
             yield DatabaseObject("function", schema, function, definition)
 
         # Triggers
@@ -192,6 +211,9 @@ class MssqlAdapter(BaseAdapter):
                     WHERE s.name NOT IN ('sys', 'INFORMATION_SCHEMA');
                     """)
         for schema, trigger, definition, table_name in cur.fetchall():
+            # Ensure the trigger definition uses CREATE OR ALTER TRIGGER
+            if definition.strip().upper().startswith("CREATE TRIGGER"):
+                definition = definition.replace("CREATE TRIGGER", "CREATE OR ALTER TRIGGER", 1)
             yield DatabaseObject("trigger", schema, trigger, definition)
 
         # Sequences
@@ -224,7 +246,20 @@ class MssqlAdapter(BaseAdapter):
                     JOIN sys.types t ON seq.user_type_id = t.user_type_id
                     WHERE s.name NOT IN ('sys', 'INFORMATION_SCHEMA');
                     """)
-        for schema, sequence, ddl in cur.fetchall():
+        for schema, sequence, sequence_ddl in cur.fetchall():
+            # Wrap the CREATE SEQUENCE statement in an IF NOT EXISTS check
+            ddl = f"""
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.sequences s
+    JOIN sys.schemas sch ON s.schema_id = sch.schema_id
+    WHERE sch.name = '{schema}'
+    AND s.name = '{sequence}'
+)
+BEGIN
+    {sequence_ddl}
+END;
+"""
             yield DatabaseObject("sequence", schema, sequence, ddl)
 
         # Types (User-Defined Types)
@@ -281,7 +316,20 @@ class MssqlAdapter(BaseAdapter):
                             """)
                 ddl_row = cur.fetchone()
                 if ddl_row:
-                    ddl = ddl_row[0]
+                    type_ddl = ddl_row[0]
+                    # Wrap the CREATE TYPE statement in an IF NOT EXISTS check
+                    ddl = f"""
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.types t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = '{schema}'
+    AND t.name = '{type_name}'
+)
+BEGIN
+    {type_ddl}
+END;
+"""
                     yield DatabaseObject("type", schema, type_name, ddl)
             else:
                 # Scalar type
@@ -294,5 +342,18 @@ class MssqlAdapter(BaseAdapter):
                 elif base_type in ('decimal', 'numeric'):
                     type_def += f'({precision},{scale})'
 
-                ddl = f"CREATE TYPE [{schema}].[{type_name}] FROM {type_def}"
+                scalar_type_ddl = f"CREATE TYPE [{schema}].[{type_name}] FROM {type_def}"
+                # Wrap the CREATE TYPE statement in an IF NOT EXISTS check
+                ddl = f"""
+IF NOT EXISTS (
+    SELECT 1
+    FROM sys.types t
+    JOIN sys.schemas s ON t.schema_id = s.schema_id
+    WHERE s.name = '{schema}'
+    AND t.name = '{type_name}'
+)
+BEGIN
+    {scalar_type_ddl}
+END;
+"""
                 yield DatabaseObject("type", schema, type_name, ddl)

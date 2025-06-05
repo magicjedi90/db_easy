@@ -1,4 +1,5 @@
 # sqlstride/adapters/postgres.py
+import re
 from etl.database.sql_dialects import mariadb
 from sqlalchemy import PoolProxiedConnection
 
@@ -29,6 +30,9 @@ class MariadbAdapter(BaseAdapter):
             # Get table DDL
             cur.execute(f"SHOW CREATE TABLE `{schema}`.`{table}`;")
             _, ddl = cur.fetchone()
+            # Add IF NOT EXISTS if not already present
+            if "CREATE TABLE" in ddl and "IF NOT EXISTS" not in ddl:
+                ddl = ddl.replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS", 1)
             yield DatabaseObject("table", schema, table, ddl)
 
         # Views
@@ -40,7 +44,21 @@ class MariadbAdapter(BaseAdapter):
         for schema, view in cur.fetchall():
             # Get view DDL
             cur.execute(f"SHOW CREATE VIEW `{schema}`.`{view}`;")
-            _, _, ddl, _ = cur.fetchone()
+            result = cur.fetchone()
+            # SHOW CREATE VIEW returns: View, Create View, character_set_client, collation_connection
+            # We need the second column (index 1) which contains the CREATE VIEW statement
+            original_ddl = result[1] if result and len(result) > 1 else f"CREATE VIEW `{schema}`.`{view}` AS SELECT 1 AS placeholder;"
+
+            # Clean up the view definition by extracting just the SELECT part
+            # The pattern looks for anything after "VIEW `schema`.`name` AS " in the DDL
+            select_part_match = re.search(r"VIEW\s+`[^`]+`\.`[^`]+`\s+AS\s+(.+)$", original_ddl, re.DOTALL)
+            if select_part_match:
+                select_part = select_part_match.group(1)
+                # Create a clean CREATE OR REPLACE VIEW statement
+                ddl = f"CREATE OR REPLACE VIEW `{schema}`.`{view}` AS {select_part}"
+            else:
+                # Fallback if regex doesn't match
+                ddl = f"CREATE OR REPLACE VIEW `{schema}`.`{view}` AS SELECT 1 AS placeholder;"
             yield DatabaseObject("view", schema, view, ddl)
 
         # Procedures
@@ -67,7 +85,7 @@ class MariadbAdapter(BaseAdapter):
                     params.append(f"{data_type}")
 
             param_str = ", ".join(params)
-            full_ddl = f"CREATE PROCEDURE `{schema}`.`{procedure}`({param_str})\n{ddl}"
+            full_ddl = f"CREATE PROCEDURE IF NOT EXISTS `{schema}`.`{procedure}`({param_str})\n{ddl}"
             yield DatabaseObject("procedure", schema, procedure, full_ddl)
 
         # Functions
@@ -92,7 +110,7 @@ class MariadbAdapter(BaseAdapter):
                 params.append(f"{name} {data_type}")
 
             param_str = ", ".join(params)
-            full_ddl = f"CREATE FUNCTION `{schema}`.`{function}`({param_str}) RETURNS {return_type}\n{ddl}"
+            full_ddl = f"CREATE FUNCTION IF NOT EXISTS `{schema}`.`{function}`({param_str}) RETURNS {return_type}\n{ddl}"
             yield DatabaseObject("function", schema, function, full_ddl)
 
         # Triggers
@@ -102,7 +120,7 @@ class MariadbAdapter(BaseAdapter):
                     WHERE trigger_schema NOT IN ('mysql', 'information_schema', 'performance_schema', 'sys');
                     """)
         for schema, trigger, action, event, table in cur.fetchall():
-            ddl = f"CREATE TRIGGER `{schema}`.`{trigger}` {event} ON `{table}` FOR EACH ROW\n{action}"
+            ddl = f"CREATE TRIGGER IF NOT EXISTS `{schema}`.`{trigger}` {event} ON `{table}` FOR EACH ROW\n{action}"
             yield DatabaseObject("trigger", schema, trigger, ddl)
 
         # Sequences (MariaDB 10.3+)
@@ -117,6 +135,11 @@ class MariadbAdapter(BaseAdapter):
                 # Get sequence DDL
                 cur.execute(f"SHOW CREATE TABLE `{schema}`.`{sequence}`;")
                 _, ddl = cur.fetchone()
+                # Add IF NOT EXISTS if not already present
+                if "CREATE SEQUENCE" in ddl and "IF NOT EXISTS" not in ddl:
+                    ddl = ddl.replace("CREATE SEQUENCE", "CREATE SEQUENCE IF NOT EXISTS", 1)
+                elif "CREATE TABLE" in ddl and "IF NOT EXISTS" not in ddl:
+                    ddl = ddl.replace("CREATE TABLE", "CREATE TABLE IF NOT EXISTS", 1)
                 yield DatabaseObject("sequence", schema, sequence, ddl)
         except:
             # Sequences might not be supported in this version
