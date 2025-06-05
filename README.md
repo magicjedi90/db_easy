@@ -275,3 +275,26 @@ my_project/
 
 This approach allows you to manage your database schema using plain SQL files without having to write boilerplate
 migration code, with the added flexibility of using templates when needed.
+
+## Continuous Deployment
+
+This project uses GitHub Actions to automatically publish new versions to PyPI whenever changes are pushed to the main branch.
+
+### Setting up PyPI Deployment
+
+To enable automatic PyPI deployment:
+
+1. Generate a PyPI API token:
+   - Go to https://pypi.org/manage/account/token/
+   - Create a new API token with scope limited to the `sqlstride` project
+   - Copy the token value (you'll only see it once)
+
+2. Add the token to your GitHub repository secrets:
+   - Go to your GitHub repository
+   - Navigate to Settings > Secrets and variables > Actions
+   - Click "New repository secret"
+   - Name: `PYPI_API_TOKEN`
+   - Value: Paste the PyPI token you generated
+   - Click "Add secret"
+
+3. Now, whenever you push changes to the main branch, the package will be automatically built and published to PyPI with the version specified in `src/sqlstride/__about__.py`.
