@@ -2,7 +2,7 @@
 from .postgres import PostgresAdapter
 from .mssql    import MssqlAdapter
 from .mariadb  import MariadbAdapter
-from ..config import Config
+from sqlstride.config import Config
 
 
 def get_adapter(config: Config):

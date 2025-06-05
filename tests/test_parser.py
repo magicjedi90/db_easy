@@ -1,7 +1,5 @@
 import os
-import pytest
-from pathlib import Path
-from sqlstride.parser import parse_sql_file, parse_directory, Step
+from sqlstride.file_utils.parser import parse_sql_file, parse_directory, Step
 from sqlstride.constants import ORDERED_DIRS
 
 

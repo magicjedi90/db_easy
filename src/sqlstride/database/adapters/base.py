@@ -1,10 +1,13 @@
 # sqlstride/adapters/base.py
 from abc import ABC, abstractmethod
-from typing import Dict, Tuple
+from pathlib import Path
+from typing import Dict, Tuple, Iterable
 
 from etl.database.sql_dialects import SqlDialect
 from etl.logger import Logger
 from sqlalchemy import PoolProxiedConnection
+
+from sqlstride.database.database_object import DatabaseObject
 
 logger = Logger().get_logger()
 
@@ -104,3 +107,24 @@ class BaseAdapter(ABC):
             return False
         count = result[0]
         return count > 0
+
+    @abstractmethod
+    def discover_objects(self) -> Iterable[DatabaseObject]:
+        """
+        Yield DatabaseObject instances for every object in the live database.
+        Subclasses implement all dialect quirks here.
+        """
+        ...
+
+    def write_baseline(self, project_root: Path) -> int:
+        """Iterate over objects and write one *.sql file each."""
+        objects_written = 0
+        for db_object in self.discover_objects():
+            path = db_object.default_path(project_root)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            if path.exists():
+                continue                      # skip pre-existing files
+            path.write_text(f"-- step system:baseline\n\n{db_object.ddl.strip()}\n",
+                            encoding="utf-8")
+            objects_written += 1
+        return objects_written

@@ -1,9 +1,9 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
-import os
-from sqlstride.executor import sync_database, create_repository_structure
-from sqlstride.parser import Step
+from sqlstride.commands.sync import sync_database
+from sqlstride.commands.create_repo import create_repository_structure
+from sqlstride.file_utils.parser import Step
 
 
 @pytest.fixture
@@ -24,9 +24,9 @@ def mock_steps():
     ]
 
 
-@patch("sqlstride.executor.get_adapter")
-@patch("sqlstride.executor.parse_directory")
-@patch("sqlstride.executor.render_sql")
+@patch("sqlstride.commands.get_adapter")
+@patch("sqlstride.commands.parse_directory")
+@patch("sqlstride.commands.render_sql")
 def test_sync_database_no_pending_steps(mock_render_sql, mock_parse_directory, mock_get_adapter, mock_adapter, mock_config, capsys):
     """Test syncing the database with no pending steps."""
     mock_get_adapter.return_value = mock_adapter
@@ -48,9 +48,9 @@ def test_sync_database_no_pending_steps(mock_render_sql, mock_parse_directory, m
     assert "Database is already up to date" in captured.out
 
 
-@patch("sqlstride.executor.get_adapter")
-@patch("sqlstride.executor.parse_directory")
-@patch("sqlstride.executor.render_sql")
+@patch("sqlstride.commands.get_adapter")
+@patch("sqlstride.commands.parse_directory")
+@patch("sqlstride.commands.render_sql")
 def test_sync_database_with_pending_steps(mock_render_sql, mock_parse_directory, mock_get_adapter, mock_adapter, mock_steps, mock_config, capsys):
     """Test syncing the database with pending steps."""
     mock_get_adapter.return_value = mock_adapter
@@ -81,9 +81,9 @@ def test_sync_database_with_pending_steps(mock_render_sql, mock_parse_directory,
     assert "Applied file2.sql author2:step2" in captured.out
 
 
-@patch("sqlstride.executor.get_adapter")
-@patch("sqlstride.executor.parse_directory")
-@patch("sqlstride.executor.render_sql")
+@patch("sqlstride.commands.get_adapter")
+@patch("sqlstride.commands.parse_directory")
+@patch("sqlstride.commands.render_sql")
 def test_sync_database_dry_run(mock_render_sql, mock_parse_directory, mock_get_adapter, mock_adapter, mock_steps, mock_config, capsys):
     """Test syncing the database in dry run mode."""
     mock_get_adapter.return_value = mock_adapter
@@ -114,9 +114,9 @@ def test_sync_database_dry_run(mock_render_sql, mock_parse_directory, mock_get_a
     assert "WOULD APPLY author2:step2" in captured.out
 
 
-@patch("sqlstride.executor.get_adapter")
-@patch("sqlstride.executor.parse_directory")
-@patch("sqlstride.executor.render_sql")
+@patch("sqlstride.commands.get_adapter")
+@patch("sqlstride.commands.parse_directory")
+@patch("sqlstride.commands.render_sql")
 def test_sync_database_same_checksums(mock_render_sql, mock_parse_directory, mock_get_adapter, mock_adapter, mock_config):
     """Test syncing the database with same_checksums=True."""
     mock_get_adapter.return_value = mock_adapter
@@ -138,16 +138,16 @@ def test_sync_database_same_checksums(mock_render_sql, mock_parse_directory, moc
     mock_render_sql.side_effect = lambda sql, vars_, filename: sql
     
     # Mock sha256 to return the expected checksums
-    with patch("sqlstride.executor.sha256") as mock_sha256:
+    with patch("sqlstride.commands.sha256") as mock_sha256:
         mock_sha256().hexdigest.side_effect = ["checksum1", "checksum2"]
         
         # Should not raise an exception
         sync_database(mock_config, same_checksums=True)
 
 
-@patch("sqlstride.executor.get_adapter")
-@patch("sqlstride.executor.parse_directory")
-@patch("sqlstride.executor.render_sql")
+@patch("sqlstride.commands.get_adapter")
+@patch("sqlstride.commands.parse_directory")
+@patch("sqlstride.commands.render_sql")
 def test_sync_database_different_checksums(mock_render_sql, mock_parse_directory, mock_get_adapter, mock_adapter, mock_config):
     """Test syncing the database with same_checksums=True and different checksums."""
     mock_get_adapter.return_value = mock_adapter
@@ -169,7 +169,7 @@ def test_sync_database_different_checksums(mock_render_sql, mock_parse_directory
     mock_render_sql.side_effect = lambda sql, vars_, filename: sql
     
     # Mock sha256 to return different checksums
-    with patch("sqlstride.executor.sha256") as mock_sha256:
+    with patch("sqlstride.commands.sha256") as mock_sha256:
         mock_sha256().hexdigest.side_effect = ["new_checksum1", "new_checksum2"]
         
         # Should raise an exception
@@ -177,7 +177,7 @@ def test_sync_database_different_checksums(mock_render_sql, mock_parse_directory
             sync_database(mock_config, same_checksums=True)
 
 
-@patch("sqlstride.executor.get_adapter")
+@patch("sqlstride.commands.get_adapter")
 def test_sync_database_already_locked(mock_get_adapter, mock_adapter, mock_config):
     """Test syncing the database when it's already locked."""
     mock_adapter.is_locked.return_value = True
@@ -187,9 +187,9 @@ def test_sync_database_already_locked(mock_get_adapter, mock_adapter, mock_confi
         sync_database(mock_config)
 
 
-@patch("sqlstride.executor.get_adapter")
-@patch("sqlstride.executor.parse_directory")
-@patch("sqlstride.executor.render_sql")
+@patch("sqlstride.commands.get_adapter")
+@patch("sqlstride.commands.parse_directory")
+@patch("sqlstride.commands.render_sql")
 def test_sync_database_execution_error(mock_render_sql, mock_parse_directory, mock_get_adapter, mock_adapter, mock_steps, mock_config):
     """Test syncing the database with an execution error."""
     mock_get_adapter.return_value = mock_adapter
@@ -206,8 +206,8 @@ def test_sync_database_execution_error(mock_render_sql, mock_parse_directory, mo
     mock_adapter.rollback.assert_called_once()
 
 
-@patch("sqlstride.executor.click")
-@patch("sqlstride.executor.os.makedirs")
+@patch("sqlstride.commands.click")
+@patch("sqlstride.commands.os.makedirs")
 @patch("builtins.open")
 def test_create_repository_structure(mock_open, mock_makedirs, mock_click):
     """Test creating the repository structure."""

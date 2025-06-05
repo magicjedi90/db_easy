@@ -1,5 +1,5 @@
 import pytest
-from sqlstride.templating import render_sql
+from sqlstride.file_utils.templating import render_sql
 
 
 def test_render_sql_no_template():

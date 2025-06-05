@@ -1,10 +1,10 @@
 import pytest
 from unittest.mock import MagicMock, patch
 from pathlib import Path
-from sqlstride.adapters import get_adapter
-from sqlstride.adapters.base import BaseAdapter
+from sqlstride.database.adapters import get_adapter
+from sqlstride.database.adapters import BaseAdapter
 from sqlstride.config import Config
-from sqlstride.parser import Step
+from sqlstride.file_utils.parser import Step
 from etl.database.sql_dialects import postgres
 
 

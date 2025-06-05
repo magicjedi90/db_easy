@@ -1,6 +1,6 @@
 # sqlstride/connector_proxy.py
 from etl.database.connector import Connector
-from .config import Config
+from sqlstride.config import Config
 
 
 def build_connector(config: Config) -> Connector:

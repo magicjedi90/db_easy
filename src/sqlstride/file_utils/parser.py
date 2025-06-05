@@ -1,7 +1,7 @@
 # sqlstride/parser.py
 from pathlib import Path
 from typing import List, NamedTuple
-from .constants import STEP_PATTERN, ORDERED_DIRS
+from sqlstride.constants import STEP_PATTERN, ORDERED_DIRS
 from etl.logger import Logger
 
 logger = Logger().get_logger()
