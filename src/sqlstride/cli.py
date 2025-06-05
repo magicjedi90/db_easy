@@ -197,26 +197,8 @@ def create_repo(project_path):
     default=None,
     help="Name of the table to use to lock the database during sync"
 )
-@click.option(
-    "--dry-run",
-    is_flag=True,
-    default=False,
-    help="Parse & list SQL without executing anything",
-)
-@click.option(
-    "--same-checksums",
-    is_flag=True,
-    default=False,
-    help="Checks the current checksums against the existing checksums and raises an error if they are different"
-)
-@click.option(
-    "--jinja-vars",
-    type=str,
-    default=None,
-    help="JSON string of variables to use in Jinja templates"
-)
 def baseline(project_path, host, port, instance, database, username, password, trusted_auth,
-                         sql_dialect, default_schema, log_table, lock_table, dry_run, same_checksums, jinja_vars):
+                         sql_dialect, default_schema, log_table, lock_table):
     config = load_config(Path(project_path), host, port, instance, database, username, password, trusted_auth,
                          sql_dialect, default_schema, log_table, lock_table, None)
     adapter = get_adapter(config)
