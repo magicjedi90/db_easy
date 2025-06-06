@@ -3,6 +3,7 @@ from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Tuple, Iterable
 
+import sqlparse
 from etl.database.sql_dialects import SqlDialect
 from etl.logger import Logger
 from sqlalchemy import PoolProxiedConnection
@@ -55,6 +56,7 @@ class BaseAdapter(ABC):
         );
         """
         self.execute(ddl)
+
     # identical convenience wrappers the old psycopg code used:
     def execute(self, sql: str):
         self.initialize_cursor()
@@ -123,8 +125,9 @@ class BaseAdapter(ABC):
             path = db_object.default_path(project_root)
             path.parent.mkdir(parents=True, exist_ok=True)
             if path.exists():
-                continue                      # skip pre-existing files
-            path.write_text(f"-- step system:baseline\n\n{db_object.ddl.strip()}\n",
-                            encoding="utf-8")
+                continue  # skip pre-existing files
+            file_text = f"-- step system:baseline\n\n{db_object.ddl.strip()}\n"
+            file_text = sqlparse.format(file_text, reindent=True, keyword_case='upper')
+            path.write_text(file_text, encoding="utf-8")
             objects_written += 1
         return objects_written
