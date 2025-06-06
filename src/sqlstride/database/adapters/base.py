@@ -127,7 +127,7 @@ class BaseAdapter(ABC):
             if path.exists():
                 continue  # skip pre-existing files
             file_text = f"-- step system:baseline\n\n{db_object.ddl.strip()}\n"
-            file_text = sqlparse.format(file_text, reindent=True, keyword_case='upper')
+            file_text = sqlparse.format(file_text, reindent_aligned=True, keyword_case='upper', compact=True)
             path.write_text(file_text, encoding="utf-8")
             objects_written += 1
         return objects_written

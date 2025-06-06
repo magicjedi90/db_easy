@@ -6,6 +6,7 @@ from sqlstride.config import Config
 from sqlstride.database.connector_proxy import build_connector
 from .base import BaseAdapter
 from ..database_object import DatabaseObject
+import re
 
 
 class MssqlAdapter(BaseAdapter):
@@ -215,8 +216,9 @@ class MssqlAdapter(BaseAdapter):
                     """)
         for schema, view, definition in cur.fetchall():
             # Use CREATE OR ALTER VIEW for idempotent creation
-            ddl = f"CREATE OR ALTER VIEW [{schema}].[{view}] AS\n{definition}"
-            yield DatabaseObject("view", schema, view, ddl)
+            if "create or alter" not in definition.lower():
+                definition = re.sub("CREATE", "CREATE OR ALTER", definition, count=1, flags=re.IGNORECASE)
+            yield DatabaseObject("view", schema, view, definition)
 
         # Stored Procedures
         cur.execute(f"""
@@ -231,8 +233,8 @@ class MssqlAdapter(BaseAdapter):
                     """)
         for schema, procedure, definition in cur.fetchall():
             # Ensure the procedure definition uses CREATE OR ALTER PROCEDURE
-            if definition.strip().upper().startswith("CREATE PROCEDURE"):
-                definition = definition.replace("CREATE PROCEDURE", "CREATE OR ALTER PROCEDURE", 1)
+            if "create or alter" not in definition.lower():
+                definition = re.sub("CREATE", "CREATE OR ALTER", definition, count=1, flags=re.IGNORECASE)
             yield DatabaseObject("procedure", schema, procedure, definition)
 
         # Functions
@@ -255,8 +257,8 @@ class MssqlAdapter(BaseAdapter):
                     """)
         for schema, function, definition, function_type in cur.fetchall():
             # Ensure the function definition uses CREATE OR ALTER FUNCTION
-            if definition.strip().upper().startswith("CREATE FUNCTION"):
-                definition = definition.replace("CREATE FUNCTION", "CREATE OR ALTER FUNCTION", 1)
+            if "create or alter" not in definition.lower():
+                definition = re.sub("CREATE", "CREATE OR ALTER", definition, count=1, flags=re.IGNORECASE)
             yield DatabaseObject("function", schema, function, definition)
 
         # Triggers
@@ -272,8 +274,8 @@ class MssqlAdapter(BaseAdapter):
                     """)
         for schema, trigger, definition, table_name in cur.fetchall():
             # Ensure the trigger definition uses CREATE OR ALTER TRIGGER
-            if definition.strip().upper().startswith("CREATE TRIGGER"):
-                definition = definition.replace("CREATE TRIGGER", "CREATE OR ALTER TRIGGER", 1)
+            if "create or alter" not in definition.lower():
+                definition = re.sub("CREATE", "CREATE OR ALTER", definition, count=1, flags=re.IGNORECASE)
             yield DatabaseObject("trigger", schema, trigger, definition)
 
         # Sequences
@@ -281,7 +283,7 @@ class MssqlAdapter(BaseAdapter):
                     SELECT 
                         s.name AS schema_name,
                         seq.name AS sequence_name,
-                        'CREATE SEQUENCE [' + s.name + '].[' + seq.name + ']' +
+                        'CREATE OR ALTER SEQUENCE [' + s.name + '].[' + seq.name + ']' +
                         ' AS ' + t.name +
                         ' START WITH ' + CAST(seq.start_value AS VARCHAR) +
                         ' INCREMENT BY ' + CAST(seq.increment AS VARCHAR) +
