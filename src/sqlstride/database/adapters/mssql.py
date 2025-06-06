@@ -84,96 +84,121 @@ WITH cols AS (
     SELECT
         c.column_id,
 
-        /* Column definition ------------------------------------------------ */
         CONCAT(
-            QUOTENAME(c.name),                -- column name
-            ' ',
-            /* data type with length / precision ---------------------------- */
+            QUOTENAME(c.name), ' ',
+            /* type + length / precision -------------------------------- */
             CASE
-                WHEN tp.name IN ('varchar','char','nvarchar','nchar')
-                     THEN CONCAT(tp.name,
-                                 '(',
-                                 IIF(c.max_length = -1, 'MAX', c.max_length),
-                                 ')')
-                WHEN tp.name IN ('decimal','numeric')
-                     THEN CONCAT(tp.name,
-                                 '(',
-                                 c.precision, ',', c.scale,
-                                 ')')
-                ELSE tp.name
-            END,
-            /* identity ------------------------------------------------------ */
+    /* character types -------------------------------------------------- */
+    WHEN tp.name IN ('varchar','char')
+        THEN CONCAT(tp.name,
+                    '(',
+                    CASE WHEN c.max_length = -1
+                         THEN 'MAX'
+                         ELSE CAST(c.max_length AS varchar(10)) END,
+                    ')')
+
+    WHEN tp.name IN ('nvarchar','nchar')
+        -- nvarchar length is in bytes; divide by 2 for characters
+        THEN CONCAT(tp.name,
+                    '(',
+                    CASE WHEN c.max_length = -1
+                         THEN 'MAX'
+                         ELSE CAST(c.max_length / 2 AS varchar(10)) END,
+                    ')')
+
+    /* varbinary -------------------------------------------------------- */
+    WHEN tp.name = 'varbinary'
+        THEN CONCAT(tp.name,
+                    '(',
+                    CASE WHEN c.max_length = -1
+                         THEN 'MAX'
+                         ELSE CAST(c.max_length AS varchar(10)) END,
+                    ')')
+
+    /* numeric types ---------------------------------------------------- */
+    WHEN tp.name IN ('decimal','numeric')
+        THEN CONCAT(tp.name,
+                    '(',
+                    CAST(c.precision AS varchar(10)), ',',
+                    CAST(c.scale     AS varchar(10)), ')')
+
+    /* everything else -------------------------------------------------- */
+    ELSE tp.name
+END,
+            /* identity -------------------------------------------------- */
             IIF(ic.is_identity = 1,
-                CONCAT(
-                    ' IDENTITY(',
-                    IDENT_SEED(t.object_id),  ',', IDENT_INCR(t.object_id),
-                    ')'
-                ),
-                ''
-            ),
-            /* default ------------------------------------------------------- */
+                CONCAT(' IDENTITY(',
+                       IDENT_SEED(t.object_id), ',',
+                       IDENT_INCR(t.object_id), ')'),
+                ''),
+            /* default --------------------------------------------------- */
             IIF(dc.definition IS NOT NULL,
-                CONCAT(' DEFAULT ', dc.definition),
-                ''
-            ),
-            /* nullability --------------------------------------------------- */
+                CONCAT(' DEFAULT ', dc.definition), ''),
+            /* nullability ----------------------------------------------- */
             IIF(c.is_nullable = 0, ' NOT NULL', ' NULL')
         ) AS col_ddl
-    FROM sys.tables  AS t
-    JOIN sys.schemas AS s  ON s.schema_id = t.schema_id
-    JOIN sys.columns AS c  ON c.object_id = t.object_id
-    JOIN sys.types   AS tp ON tp.user_type_id = c.user_type_id
-    LEFT JOIN sys.identity_columns  AS ic ON ic.object_id = c.object_id
-                                          AND ic.column_id = c.column_id
-    LEFT JOIN sys.default_constraints AS dc
-           ON dc.parent_object_id  = c.object_id
-          AND dc.parent_column_id  = c.column_id
-    WHERE s.name = {schema}
-      AND t.name = {table}
+    FROM  sys.tables  AS t
+    JOIN  sys.schemas AS s  ON s.schema_id = t.schema_id
+    JOIN  sys.columns AS c  ON c.object_id = t.object_id
+    JOIN  sys.types   AS tp ON tp.user_type_id = c.user_type_id
+    LEFT  JOIN sys.identity_columns  AS ic
+           ON ic.object_id = c.object_id AND ic.column_id = c.column_id
+    LEFT  JOIN sys.default_constraints AS dc
+           ON dc.parent_object_id = c.object_id
+          AND dc.parent_column_id = c.column_id
+    WHERE s.name = '{schema}'
+      AND t.name = '{table}'
+),
+pk AS (
+    /* 2.  Primary-key column list ------------------------------------- */
+    SELECT STRING_AGG(QUOTENAME(c.name), ', ')
+           WITHIN GROUP (ORDER BY ic.key_ordinal) AS pk_cols
+    FROM   sys.tables        t
+    JOIN   sys.schemas       s  ON s.schema_id = t.schema_id
+    JOIN   sys.indexes       i  ON i.object_id = t.object_id
+    JOIN   sys.index_columns ic ON ic.object_id = i.object_id
+                               AND ic.index_id  = i.index_id
+    JOIN   sys.columns       c  ON c.object_id  = ic.object_id
+                               AND c.column_id  = ic.column_id
+    WHERE  s.name = '{schema}'
+      AND  t.name = '{table}'
+      AND  i.is_primary_key = 1
+),
+col_list AS (
+    /* 3.  Aggregate columns once, so we can reference it later -------- */
+    SELECT STRING_AGG(col_ddl, ', ')
+           WITHIN GROUP (ORDER BY column_id) AS columns_ddl
+    FROM   cols
 )
-, pk AS (
-    SELECT
-        STRING_AGG(QUOTENAME(c.name), ', ')
-            WITHIN GROUP (ORDER BY ic.key_ordinal) AS pk_cols
-    FROM sys.tables        t
-    JOIN sys.schemas       s  ON s.schema_id   = t.schema_id
-    JOIN sys.indexes       i  ON i.object_id   = t.object_id
-    JOIN sys.index_columns ic ON ic.object_id  = i.object_id
-                              AND ic.index_id  = i.index_id
-    JOIN sys.columns       c  ON c.object_id   = ic.object_id
-                              AND c.column_id  = ic.column_id
-    WHERE s.name         = {schema}
-      AND t.name         = {table}
-      AND i.is_primary_key = 1
-)
+
 SELECT CONCAT(
            'CREATE TABLE ',
-           QUOTENAME({schema}), '.', QUOTENAME({table}),
+           QUOTENAME('{schema}'), '.', QUOTENAME('{table}'),
            ' (',
-           STRING_AGG(col_ddl, ', ' ORDER BY column_id),      -- columns
-           IIF((SELECT pk_cols FROM pk) IS NOT NULL,
-               CONCAT(', CONSTRAINT PK_', QUOTENAME(@table),
+           (SELECT columns_ddl FROM col_list),               -- columns
+           IIF((SELECT pk_cols FROM pk) IS NOT NULL,          -- PK block
+               CONCAT(', CONSTRAINT PK_', '{table}',
                       ' PRIMARY KEY (', (SELECT pk_cols FROM pk), ')'),
-               ''
-           ),
+               ''),
            ');'
        ) AS create_table_sql;
-                        """)
+""")
             ddl_row = cur.fetchone()
             if ddl_row:
                 create_table_ddl = ddl_row[0]
                 # Wrap the CREATE TABLE statement in an IF NOT EXISTS check
-                ddl = f"""
-IF NOT EXISTS (
-    SELECT 1
-    FROM INFORMATION_SCHEMA.TABLES
-    WHERE TABLE_SCHEMA = '{schema}'
-    AND TABLE_NAME = '{table}'
-)
-BEGIN
-    {create_table_ddl}
-END;
-"""
+                ddl = \
+                    f"""
+                    IF NOT EXISTS (
+                        SELECT 1
+                        FROM INFORMATION_SCHEMA.TABLES
+                        WHERE TABLE_SCHEMA = '{schema}'
+                        AND TABLE_NAME = '{table}'
+                    )
+                    BEGIN
+                        {create_table_ddl}
+                    END;
+                    """
                 yield DatabaseObject("table", schema, table, ddl)
 
         # Views
