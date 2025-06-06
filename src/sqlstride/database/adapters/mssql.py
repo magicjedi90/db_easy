@@ -28,14 +28,14 @@ class MssqlAdapter(BaseAdapter):
             AND TABLE_NAME = '{self.log_table}'
         )
         BEGIN
-            CREATE TABLE {self.default_schema}].[{self.log_table}
+            CREATE TABLE [{self.default_schema}].[{self.log_table}]
             (
                 id           INT IDENTITY(1,1) PRIMARY KEY,   -- identity column
                 author       VARCHAR(100)  NOT NULL,
                 step_id      VARCHAR(100)  NOT NULL,
                 filename     VARCHAR(100)  NOT NULL,
                 checksum     VARCHAR(2000) NOT NULL,
-                applied_at   DATETIME2      DEFAULT (SYSDATETIME())
+                applied_at   DATETIME2      DEFAULT (SYSUTCDATETIME())
             );
         END;
         """
@@ -52,10 +52,10 @@ class MssqlAdapter(BaseAdapter):
             AND TABLE_NAME = '{self.lock_table}'
         )
         BEGIN
-            CREATE TABLE {self.default_schema}].[{self.lock_table}
+            CREATE TABLE [{self.default_schema}].[{self.lock_table}]
             (
                 {self.dialect.identity_fragment_function(self.lock_table)},
-                locked_at {self.dialect.datetime_type} DEFAULT NOW()
+                locked_at {self.dialect.datetime_type} DEFAULT SYSUTCDATETIME()
             );
         END;
         """
@@ -80,49 +80,84 @@ class MssqlAdapter(BaseAdapter):
         for schema, table in cur.fetchall():
             # Get table DDL
             cur.execute(f"""
-                        SELECT 
-                            'CREATE TABLE [' + s.name + '].[' + t.name + '] (' +
-                            STRING_AGG(
-                                CAST(
-                                    '[' + c.name + '] ' + 
-                                    CASE 
-                                        WHEN t.name = 'sysname' THEN 'sysname'
-                                        ELSE 
-                                            tp.name + 
-                                            CASE 
-                                                WHEN tp.name IN ('varchar', 'nvarchar', 'char', 'nchar') 
-                                                    THEN '(' + CASE WHEN c.max_length = -1 THEN 'MAX' ELSE CAST(c.max_length AS VARCHAR) END + ')'
-                                                WHEN tp.name IN ('decimal', 'numeric') 
-                                                    THEN '(' + CAST(c.precision AS VARCHAR) + ',' + CAST(c.scale AS VARCHAR) + ')'
-                                                ELSE ''
-                                            END
-                                    END +
-                                    CASE WHEN c.is_nullable = 0 THEN ' NOT NULL' ELSE ' NULL' END +
-                                    CASE WHEN ic.is_identity = 1 THEN ' IDENTITY(' + CAST(IDENT_SEED(s.name + '.' + t.name) AS VARCHAR) + ',' + CAST(IDENT_INCR(s.name + '.' + t.name) AS VARCHAR) + ')' ELSE '' END +
-                                    CASE WHEN dc.definition IS NOT NULL THEN ' DEFAULT ' + dc.definition ELSE '' END
-                                AS NVARCHAR(MAX)), 
-                                ',' + CHAR(13) + CHAR(10) + '    '
-                            ) +
-                            CASE 
-                                WHEN pk.name IS NOT NULL THEN 
-                                    ',' + CHAR(13) + CHAR(10) + '    CONSTRAINT [' + pk.name + '] PRIMARY KEY (' +
-                                    (SELECT STRING_AGG(CAST('[' + c.name + ']' AS NVARCHAR(MAX)), ',') 
-                                     FROM sys.index_columns ic
-                                     JOIN sys.columns c ON ic.object_id = c.object_id AND ic.column_id = c.column_id
-                                     WHERE ic.object_id = t.object_id AND ic.index_id = pk.index_id)
-                                    + ')'
-                                ELSE ''
-                            END +
-                            ')' AS table_ddl
-                        FROM sys.tables t
-                        JOIN sys.schemas s ON t.schema_id = s.schema_id
-                        JOIN sys.columns c ON t.object_id = c.object_id
-                        JOIN sys.types tp ON c.user_type_id = tp.user_type_id
-                        LEFT JOIN sys.identity_columns ic ON c.object_id = ic.object_id AND c.column_id = ic.column_id
-                        LEFT JOIN sys.default_constraints dc ON c.object_id = dc.parent_object_id AND c.column_id = dc.parent_column_id
-                        LEFT JOIN sys.indexes pk ON t.object_id = pk.object_id AND pk.is_primary_key = 1
-                        WHERE s.name = '{schema}' AND t.name = '{table}'
-                        GROUP BY s.name, t.name, pk.name, pk.index_id;
+WITH cols AS (
+    SELECT
+        c.column_id,
+
+        /* Column definition ------------------------------------------------ */
+        CONCAT(
+            QUOTENAME(c.name),                -- column name
+            ' ',
+            /* data type with length / precision ---------------------------- */
+            CASE
+                WHEN tp.name IN ('varchar','char','nvarchar','nchar')
+                     THEN CONCAT(tp.name,
+                                 '(',
+                                 IIF(c.max_length = -1, 'MAX', c.max_length),
+                                 ')')
+                WHEN tp.name IN ('decimal','numeric')
+                     THEN CONCAT(tp.name,
+                                 '(',
+                                 c.precision, ',', c.scale,
+                                 ')')
+                ELSE tp.name
+            END,
+            /* identity ------------------------------------------------------ */
+            IIF(ic.is_identity = 1,
+                CONCAT(
+                    ' IDENTITY(',
+                    IDENT_SEED(t.object_id),  ',', IDENT_INCR(t.object_id),
+                    ')'
+                ),
+                ''
+            ),
+            /* default ------------------------------------------------------- */
+            IIF(dc.definition IS NOT NULL,
+                CONCAT(' DEFAULT ', dc.definition),
+                ''
+            ),
+            /* nullability --------------------------------------------------- */
+            IIF(c.is_nullable = 0, ' NOT NULL', ' NULL')
+        ) AS col_ddl
+    FROM sys.tables  AS t
+    JOIN sys.schemas AS s  ON s.schema_id = t.schema_id
+    JOIN sys.columns AS c  ON c.object_id = t.object_id
+    JOIN sys.types   AS tp ON tp.user_type_id = c.user_type_id
+    LEFT JOIN sys.identity_columns  AS ic ON ic.object_id = c.object_id
+                                          AND ic.column_id = c.column_id
+    LEFT JOIN sys.default_constraints AS dc
+           ON dc.parent_object_id  = c.object_id
+          AND dc.parent_column_id  = c.column_id
+    WHERE s.name = {schema}
+      AND t.name = {table}
+)
+, pk AS (
+    SELECT
+        STRING_AGG(QUOTENAME(c.name), ', ')
+            WITHIN GROUP (ORDER BY ic.key_ordinal) AS pk_cols
+    FROM sys.tables        t
+    JOIN sys.schemas       s  ON s.schema_id   = t.schema_id
+    JOIN sys.indexes       i  ON i.object_id   = t.object_id
+    JOIN sys.index_columns ic ON ic.object_id  = i.object_id
+                              AND ic.index_id  = i.index_id
+    JOIN sys.columns       c  ON c.object_id   = ic.object_id
+                              AND c.column_id  = ic.column_id
+    WHERE s.name         = {schema}
+      AND t.name         = {table}
+      AND i.is_primary_key = 1
+)
+SELECT CONCAT(
+           'CREATE TABLE ',
+           QUOTENAME({schema}), '.', QUOTENAME({table}),
+           ' (',
+           STRING_AGG(col_ddl, ', ' ORDER BY column_id),      -- columns
+           IIF((SELECT pk_cols FROM pk) IS NOT NULL,
+               CONCAT(', CONSTRAINT PK_', QUOTENAME(@table),
+                      ' PRIMARY KEY (', (SELECT pk_cols FROM pk), ')'),
+               ''
+           ),
+           ');'
+       ) AS create_table_sql;
                         """)
             ddl_row = cur.fetchone()
             if ddl_row:
