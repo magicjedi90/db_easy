@@ -2,13 +2,13 @@
 from etl.database.sql_dialects import mssql
 from sqlalchemy import PoolProxiedConnection
 
-from .base import BaseAdapter
 from sqlstride.config import Config
 from sqlstride.database.connector_proxy import build_connector
+from .base import BaseAdapter
+from ..database_object import DatabaseObject
 
 
 class MssqlAdapter(BaseAdapter):
-
     dialect = mssql
 
     def __init__(self, config: Config):
